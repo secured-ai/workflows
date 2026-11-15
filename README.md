@@ -2,9 +2,9 @@
 
 Reusable GitHub Actions workflows for the SecuredAI product repositories:
 [intent-envelope](https://github.com/secured-ai/intent-envelope),
-[supervisor-check](https://github.com/secured-ai/supervisor-check),
-[red-team-harness](https://github.com/secured-ai/red-team-harness) and
-[agent-action-ledger](https://github.com/secured-ai/agent-action-ledger).
+[supervisor-check](https://github.com/secured-ai/supervisor-check) and
+[red-team-harness](https://github.com/secured-ai/red-team-harness), plus the
+agent-action-ledger, which is private.
 
 ## Pin these by commit SHA
 
