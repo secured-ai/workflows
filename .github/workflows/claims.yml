@@ -1,0 +1,93 @@
+name: Named claims
+
+# Assert that specific tests exist and pass, by name.
+#
+# This exists because of a failure mode an ordinary green suite does not catch.
+# A product repository here carries a handful of tests that are not checking a
+# feature, they are checking a guarantee: the harness will not run without
+# written authorisation, the supervisor denies when a fact cannot be
+# established, the envelope store has no write path. Those are the properties
+# that make the tool a control rather than a liability.
+#
+# A normal suite stays green if someone deletes one of them. Deleting a test is
+# the cheapest way to fix a failing test, and it is silent. This job names each
+# guarantee and fails with the specific one that went missing, so removing a
+# safety test is as loud as breaking the behaviour it protects.
+#
+# Callers MUST pin this by commit SHA. See node-suite.yml for why.
+#
+#   uses: secured-ai/workflows/.github/workflows/claims.yml@<sha>
+#   with:
+#     claims: |
+#       the agent does not get its own claim evaluated
+#       a supervisor that throws still denies
+
+on:
+  workflow_call:
+    inputs:
+      claims:
+        description: 'One test name per line. Every one must appear as a passing test'
+        type: string
+        required: true
+      node-version:
+        type: string
+        default: '22.18'
+      working-directory:
+        type: string
+        default: '.'
+      install:
+        type: string
+        default: 'npm ci'
+      test-command:
+        description: 'Must print TAP, which node --test does by default'
+        type: string
+        default: 'npm test'
+
+permissions:
+  contents: read
+
+jobs:
+  claims:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Install
+        run: ${{ inputs.install }}
+      - name: Every named guarantee is still tested and still passing
+        env:
+          CLAIMS: ${{ inputs.claims }}
+        run: |
+          # The suite is allowed to fail here. This job reports which named
+          # guarantee went missing, which is more use than a second copy of the
+          # same red X the suite job already shows.
+          ${{ inputs.test-command }} > /tmp/suite.txt 2>&1 || true
+
+          missing=0
+          while IFS= read -r claim; do
+            [ -z "$claim" ] && continue
+            # grep -F, because a claim is a test name and not a pattern: a
+            # bracket or a dot in a title must not quietly match something else.
+            line=$(grep -F -- " - $claim" /tmp/suite.txt | head -1)
+            case "$line" in
+              "ok "*)     echo "  ok       $claim" ;;
+              "not ok "*) echo "  FAILING  $claim"; missing=1 ;;
+              *)          echo "  MISSING  $claim"; missing=1 ;;
+            esac
+          done <<< "$CLAIMS"
+
+          if [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "A named guarantee is no longer tested, or is failing."
+            echo "Deleting one of these tests is not a fix for it."
+            exit 1
+          fi
+          echo ""
+          echo "every named guarantee is still tested and still passing"

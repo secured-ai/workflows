@@ -1,0 +1,59 @@
+name: Node suite
+
+# Typecheck and test a Node package across a matrix, for the SecuredAI product
+# repositories. Called, not run: this file does nothing on its own.
+#
+# Callers MUST pin this by commit SHA, not by @main. A shared workflow is a
+# supply chain concentration point, and anyone who can push here would otherwise
+# change CI in every product repository at once. The same reason every action
+# below is pinned by SHA rather than by tag.
+#
+#   uses: secured-ai/workflows/.github/workflows/node-suite.yml@<sha>
+
+on:
+  workflow_call:
+    inputs:
+      node-versions:
+        description: 'JSON array of Node versions, e.g. ''["22.18","24"]'''
+        type: string
+        default: '["22.18","24"]'
+      working-directory:
+        description: 'Package directory, when it is not the repository root'
+        type: string
+        default: '.'
+      typecheck:
+        description: 'Run npm run typecheck before the suite'
+        type: boolean
+        default: true
+      install:
+        description: 'Install command. npm ci needs a lockfile'
+        type: string
+        default: 'npm ci'
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ${{ fromJSON(inputs.node-versions) }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install
+        run: ${{ inputs.install }}
+      - name: Types, including the tests
+        if: inputs.typecheck
+        run: npm run typecheck
+      - name: Suite
+        run: npm test
